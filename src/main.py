@@ -2,6 +2,9 @@ import numpy as np
 
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.cluster import KMeans
+
+import matplotlib.pyplot as plt
 
 def load_embeddings(path, max_words=500):
     embeddings = {} # {"word": np.array([...]), ...}
@@ -17,8 +20,8 @@ def load_embeddings(path, max_words=500):
 
         return embeddings
 
-glove_embeddings = load_embeddings("glove.6B.50d.txt")
-words, vecs = glove_embeddings.keys(), glove_embeddings.values()
+glove_embeddings = load_embeddings("data/glove.2024.wikigiga.50d_small.txt")
+words, vecs = glove_embeddings.keys(), np.array(list(glove_embeddings.values()))
 
 # use PCA to lower dimensions down to 50, for speed
 def lower_dimensions(vecs):
@@ -27,6 +30,7 @@ def lower_dimensions(vecs):
         vecs = pca.fit_transform(vecs)
 
     return vecs
+lower_dimensions(vecs)
 
 # find similarity between words
 S = cosine_similarity(vecs) # N x N similarity matrix: words x context
@@ -43,7 +47,7 @@ mass = np.ones(N) #figure that out later
 alpha=0.95
 beta=0.2
 dt=0.05
-damping=0.99 # will use later for velocity
+damping=0.99
 
 ## Force Computation
 def compute_forces(pos, S, alpha, beta):
@@ -56,3 +60,22 @@ def compute_forces(pos, S, alpha, beta):
         strength = -alpha * (S[i] - beta)
         F[i] = np.sum(strength[:, None] * diff, axis=0)
     return F
+
+for step in range(1000):
+    F = compute_forces(pos, S, alpha, beta)
+    vel += F *dt
+    pos += vel*dt
+    vel *= damping
+
+    pos = np.clip(pos, -10, 10) #soft boundary
+
+    if step % 20 == 0:
+        plt.clf()
+
+        if step % 200 == 0:
+            kmeans = KMeans(n_clusters=8, random_state=0, n_init=10)
+            clusters = kmeans.fit_predict(vecs)
+
+        plt.scatter(pos[:, 0], pos[:, 1], c=clusters, s=8, cmap='tab10', alpha=0.7)
+        plt.title(f"Step {step}")
+        plt.pause(0.01)
