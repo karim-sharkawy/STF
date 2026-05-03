@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity
 
-def load_embeddings(path, max_words=5000):
+def load_embeddings(path, max_words=500):
     embeddings = {} # {"word": np.array([...]), ...}
 
     with open(path, 'r', encoding='utf-8') as f:
@@ -32,3 +32,27 @@ def lower_dimensions(vecs):
 S = cosine_similarity(vecs) # N x N similarity matrix: words x context
 S = (S - S.mean()) / S.std() #normalizing, so similarity is between -1 and 1
 
+#setting up particles
+
+N = len(words) # of course limited by max_words, but good to have
+pos = np.random.rand(N,2) * 2.0 # position (x,y)
+vel = np.zeros_like(pos) # zero velocity for now
+mass = np.ones(N) #figure that out later
+
+# force simulation parameters
+alpha=0.95
+beta=0.2
+dt=0.05
+damping=0.99 # will use later for velocity
+
+## Force Computation
+def compute_forces(pos, S, alpha, beta):
+    F = np.zeros_like(pos)
+
+    for i in range(N):
+        diff = pos[i] - pos
+
+        #attract/repel
+        strength = -alpha * (S[i] - beta)
+        F[i] = np.sum(strength[:, None] * diff, axis=0)
+    return F
