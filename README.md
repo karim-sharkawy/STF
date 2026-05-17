@@ -217,8 +217,4 @@ This is not:
 * A production NLP system
 * A scientifically rigorous model of cognition
 
-It’s an experiment in thinking about **meaning as a dynamical system**.
-
-
-
-If you want, I can also tailor this README to match your actual repo structure (scripts/, notebooks/, etc.) or add setup instructions and usage examples.
+It’s an experiment in thinking about meaning as a dynamical system.
