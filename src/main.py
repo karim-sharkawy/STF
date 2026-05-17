@@ -6,12 +6,15 @@ from sklearn.cluster import KMeans
 
 import matplotlib.pyplot as plt
 
+import threading
+import time
+
 def load_embeddings(path, max_words=500):
     embeddings = {} # {"word": np.array([...]), ...}
 
     with open(path, 'r', encoding='utf-8') as f:
         for index, line in enumerate(f):
-            if index > max_words:
+            if index >= max_words:
                 break
             split_line = line.strip().split()
             word = split_line[0]
@@ -20,24 +23,25 @@ def load_embeddings(path, max_words=500):
 
         return embeddings
 
-glove_embeddings = load_embeddings("data/glove.2024.wikigiga.50d_small.txt")
-words, vecs = glove_embeddings.keys(), np.array(list(glove_embeddings.values()))
+glove_embeddings = load_embeddings("data/glove.2024.wikigiga.50d_small.txt", max_words=500)
+words, vecs = list(glove_embeddings.keys()), np.array(list(glove_embeddings.values()))
+word_to_idx = {word: idx for idx, word in enumerate(words)} # for O(1) lookup
 
 # use PCA to lower dimensions down to 50, for speed
 def lower_dimensions(vecs):
     if vecs.shape[1] > 50:
+        print(f"Reducing dimensions from {vecs.shape[1]} to 50...")
         pca = PCA(n_components=50)
         vecs = pca.fit_transform(vecs)
-
     return vecs
-lower_dimensions(vecs)
+vecs = lower_dimensions(vecs)
 
 # find similarity between words
+print("Computing similarity matrix...")
 S = cosine_similarity(vecs) # N x N similarity matrix: words x context
-S = (S - S.mean()) / S.std() #normalizing, so similarity is between -1 and 1
+S = (S - S.mean()) / S.std() # normalize to z-scores
 
-#setting up particles
-
+#particle setup
 N = len(words) # of course limited by max_words, but good to have
 pos = np.random.rand(N,2) * 2.0 # position (x,y)
 vel = np.zeros_like(pos) # zero velocity for now
@@ -53,14 +57,24 @@ damping=0.99
 def compute_forces(pos, S, alpha, beta):
     F = np.zeros_like(pos)
 
-    for i in range(N):
-        diff = pos[i] - pos
-
-        #attract/repel
-        strength = -alpha * (S[i] - beta)
+    for i in range(len(pos)): # len(pos) == len(words)
+        diff = pos[i] - pos # Shape: (N, 2) - diff to all other words
+        strength = -alpha * (S[i] - beta) #attract/repel
         F[i] = np.sum(strength[:, None] * diff, axis=0)
     return F
 
+def gravity_wave(sentence, words, vecs, pos, vel, strength=0.5, radius=3.0):
+    sentence_vec = np.mean([vecs[words.index(w)] for w in sentence.lower().split() if w in words], axis=0)
+
+    sims = cosine_similarity([sentence_vec], vecs)[0]
+
+    for i in range(N):
+        if sims[i] > 0.3:
+            direction = -pos[i]
+            force_mag = strength*sims[i]
+            vel[i] += direction * force_mag * dt
+
+# main()
 for step in range(1000):
     F = compute_forces(pos, S, alpha, beta)
     vel += F *dt
@@ -69,7 +83,7 @@ for step in range(1000):
 
     pos = np.clip(pos, -10, 10) #soft boundary
 
-    if step % 20 == 0:
+    if step % 50 == 0:
         plt.clf()
 
         if step % 200 == 0:
